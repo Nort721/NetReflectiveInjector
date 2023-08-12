@@ -12,13 +12,19 @@
 
 #define DEFAULT_PORT "2843"
 
-int main() {
+int main(int argc, char** argv) {
     HANDLE hFile = NULL;
     DWORD dwLength = NULL;
     DWORD dwBytesRead = 0;
     LPVOID lpBuffer = NULL;
 
-    char* cpDllFile = "C:\\Users\\nort\\Desktop\\ReflectiveDll.dll";
+    if (argc < 2)
+    {
+        ERROR("Wrong usage. Try: DllServer.exe <target dll>");
+        return 0;
+    }
+
+    char* cpDllFile = argv[1];
 
     hFile = CreateFileA(cpDllFile, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
     if (hFile == INVALID_HANDLE_VALUE)
