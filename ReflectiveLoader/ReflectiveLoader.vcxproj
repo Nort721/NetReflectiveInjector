@@ -131,6 +131,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="MClient.c" />
     <ClCompile Include="ReflectiveLoader.c" />
   </ItemGroup>
   <ItemGroup>

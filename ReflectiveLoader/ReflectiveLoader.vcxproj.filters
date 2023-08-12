@@ -18,6 +18,9 @@
     <ClCompile Include="ReflectiveLoader.c">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="MClient.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="reflective_loader.h">
